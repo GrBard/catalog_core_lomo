@@ -11,6 +11,8 @@ class FileManager:
         self.main_file_columns = None  # Для хранения выбранных столбцов основного файла
         self.samples_file_columns = None  # Для хранения выбранных столбцов файла с образцами
 
+    # FileManager (оставляем как есть, но уточняем назначение)
+    # FileManager
     def select_excel(self):
         """Выбирает Excel-файл и запрашивает выбор столбцов."""
         self.excel_path = filedialog.askopenfilename(
@@ -18,7 +20,6 @@ class FileManager:
             filetypes=[("Excel files", "*.xlsx *.xls")]
         )
         if self.excel_path:
-            # Загружаем файл, чтобы получить список столбцов
             import pandas as pd
             try:
                 df = pd.read_excel(self.excel_path)
@@ -27,10 +28,11 @@ class FileManager:
                     messagebox.showerror("Ошибка", "Excel-файл пуст или не содержит столбцов.")
                     self.excel_path = None
                     return None
-                # Запрашиваем выбор столбцов
+                # Запрашиваем выбор столбцов, добавляем "Замеры"
                 self.main_file_columns = self.select_columns(
                     columns,
-                    ["BOX (номер коробки)", "От (начало интервала)", "До (конец интервала)"],
+                    ["Коробка (BOX)", "От (начало коробки)", "До (конец коробки)",
+                     "Замеры (для выноса)"],
                     "Выбор столбцов для основного файла"
                 )
                 if not self.main_file_columns:

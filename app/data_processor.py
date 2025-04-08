@@ -11,12 +11,17 @@ import math
 import time
 
 class DataProcessor:
-    def __init__(self, excel_path, images_folder):
+    def __init__(self, excel_path, images_folder, box_column="BOX", start_column="от", end_column="до",
+                 measurements_column="замеры"):  # Добавлен measurements_column
         self.excel_path = Path(excel_path).resolve()
         self.images_folder = Path(images_folder).resolve()
         self.data = None
         self.all_image_files = []
         self.current_dataframe = None
+        self.box_column = box_column
+        self.start_column = start_column
+        self.end_column = end_column
+        self.measurements_column = measurements_column  # Динамическое имя для 'замеры'
 
     def load_excel(self):
         """Загружает данные из Excel в DataFrame."""
@@ -32,8 +37,8 @@ class DataProcessor:
         if not self.all_image_files:
             self.load_image_files()
 
-        if "BOX" not in self.data.columns:
-            raise ValueError("В данных отсутствует столбец 'BOX' для сопоставления с фото.")
+        if self.box_column not in self.data.columns:  # Используем self.box_column вместо 'BOX'
+            raise ValueError(f"В данных отсутствует столбец '{self.box_column}' для сопоставления с фото.")
 
         def find_matching_file(box, uf=False):
             box_str = str(box)
@@ -58,21 +63,22 @@ class DataProcessor:
                 return well_name.replace("скв.", "").strip()
             return None
 
-        self.data["Фото"] = self.data["BOX"].apply(lambda box: find_matching_file(box, uf=False))
-        self.data["Фото УФ"] = self.data["BOX"].apply(lambda box: find_matching_file(box, uf=True))
+        self.data["Фото"] = self.data[self.box_column].apply(lambda box: find_matching_file(box, uf=False))
+        self.data["Фото УФ"] = self.data[self.box_column].apply(lambda box: find_matching_file(box, uf=True))
         self.data["Скважина"] = self.data["Фото"].apply(extract_well_name)
         cols = list(self.data.columns)
-        cols.insert(cols.index("BOX"), cols.pop(cols.index("Скважина")))
+        cols.insert(cols.index(self.box_column), cols.pop(cols.index("Скважина")))
         self.data = self.data[cols]
 
     def compute_intervals(self):
         """Вычисляет непрерывные интервалы и добавляет их в DataFrame как 'Начало интервала' и 'Конец интервала'."""
         cols_lower = {col.lower(): col for col in self.data.columns}
-        if "от" not in cols_lower or "до" not in cols_lower:
-            raise ValueError("В данных отсутствуют столбцы 'от' или 'до' для вычисления интервалов.")
+        if self.start_column.lower() not in cols_lower or self.end_column.lower() not in cols_lower:
+            raise ValueError(
+                f"В данных отсутствуют столбцы '{self.start_column}' или '{self.end_column}' для вычисления интервалов.")
 
-        start_col = cols_lower["от"]
-        end_col = cols_lower["до"]
+        start_col = cols_lower[self.start_column.lower()]
+        end_col = cols_lower[self.end_column.lower()]
 
         _, interval_dict = find_continuous_intervals(self.data, start_col, end_col)
 
@@ -88,12 +94,11 @@ class DataProcessor:
         self.data["Конец интервала"] = self.data.apply(get_interval_end, axis=1)
 
         cols = list(self.data.columns)
-        do_col = cols_lower["до"]
-        do_index = cols.index(do_col)
+        end_col_index = cols.index(end_col)
         cols.pop(cols.index("Начало интервала"))
         cols.pop(cols.index("Конец интервала"))
-        cols.insert(do_index + 1, "Начало интервала")
-        cols.insert(do_index + 2, "Конец интервала")
+        cols.insert(end_col_index + 1, "Начало интервала")
+        cols.insert(end_col_index + 2, "Конец интервала")
         self.data = self.data[cols]
 
     def process_data(self, samples_file=None):
@@ -104,33 +109,34 @@ class DataProcessor:
 
         # Вычисляем "Вынос"
         cols_lower = {col.lower(): col for col in self.data.columns}
-        required_cols_lower = ["замеры", "до", "от"]
+        required_cols_lower = [self.measurements_column.lower(), self.end_column.lower(),
+                               self.start_column.lower()]  # Обновлено
         missing_cols = [col for col in required_cols_lower if col not in cols_lower]
 
         if not missing_cols:
-            zamery_col = cols_lower["замеры"]
-            do_col = cols_lower["до"]
-            ot_col = cols_lower["от"]
+            measurements_col = cols_lower[self.measurements_column.lower()]  # Используем динамическое имя
+            end_col = cols_lower[self.end_column.lower()]
+            start_col = cols_lower[self.start_column.lower()]
 
-            self.data[zamery_col] = pd.to_numeric(self.data[zamery_col], errors="coerce")
-            self.data[do_col] = pd.to_numeric(self.data[do_col], errors="coerce")
-            self.data[ot_col] = pd.to_numeric(self.data[ot_col], errors="coerce")
+            self.data[measurements_col] = pd.to_numeric(self.data[measurements_col], errors="coerce")
+            self.data[end_col] = pd.to_numeric(self.data[end_col], errors="coerce")
+            self.data[start_col] = pd.to_numeric(self.data[start_col], errors="coerce")
 
             self.data["Вынос"] = self.data.apply(
-                lambda row: f"{row[zamery_col]} м ({(row[zamery_col] / (row[do_col] - row[ot_col]) * 100):.1f} %)"
-                if pd.notna(row[zamery_col]) and pd.notna(row[do_col]) and pd.notna(row[ot_col]) and (
-                            row[do_col] - row[ot_col]) != 0
+                lambda
+                    row: f"{row[measurements_col]} м ({(row[measurements_col] / (row[end_col] - row[start_col]) * 100):.1f} %)"
+                if pd.notna(row[measurements_col]) and pd.notna(row[end_col]) and pd.notna(row[start_col]) and (
+                        row[end_col] - row[start_col]) != 0
                 else "N/A",
                 axis=1
             )
             cols = list(self.data.columns)
-            cols.insert(cols.index(zamery_col) + 1, cols.pop(cols.index("Вынос")))
+            cols.insert(cols.index(measurements_col) + 1, cols.pop(cols.index("Вынос")))  # Обновлено
             self.data = self.data[cols]
 
         self.current_dataframe = self.data.copy()
-        # Сортируем по столбцу "от"
-        if "от" in self.current_dataframe.columns:
-            self.current_dataframe = self.current_dataframe.sort_values(by="от")
+        if self.start_column in self.current_dataframe.columns:
+            self.current_dataframe = self.current_dataframe.sort_values(by=self.start_column)
         return self.current_dataframe
 
     def generate_depth_scale(self, top_depth, bottom_depth, core_count, box_length=1.0):
@@ -306,23 +312,19 @@ class DataProcessor:
         if self.current_dataframe is None:
             raise ValueError("Нет данных для создания каталога.")
 
-        # Путь к scale.jpg и shkala.jpg
         scale_image_path = resource_path('resources/scale.jpg')
         shkala_image_path = resource_path('resources/shkala.jpg')
 
-        # Проверяем, существуют ли файлы
         if not os.path.exists(scale_image_path):
             raise FileNotFoundError(f"Файл {scale_image_path} не найден.")
         if not os.path.exists(shkala_image_path):
             raise FileNotFoundError(f"Файл {shkala_image_path} не найден.")
 
-        # Высота scale.jpg = 21,88 см = 8,614 дюйма
-        target_height = Inches(8.614)  # 21,88 см
-        shkala_height = Inches(1)  # Высота shkala.jpg = 1 дюйм
+        target_height = Inches(8.614)
+        shkala_height = Inches(1)
 
         doc = Document()
 
-        # Настройка отступов страницы
         sections = doc.sections
         for section in sections:
             section.top_margin = Cm(1)
@@ -330,42 +332,35 @@ class DataProcessor:
             section.left_margin = Cm(1)
             section.right_margin = Cm(1)
 
-        # Заголовок документа
         doc.add_heading(f'Фотографии керна по скважине {self.current_dataframe["Скважина"].iloc[0]}', 0)
 
-        # Вводный текст
         p = doc.add_paragraph('Глубины даны по керну. ')
         p.add_run('Номера образцов расположены напротив точек выбуривания. ')
         p.add_run('Номер образца состоит из двух цифр, разделённых точкой. ')
         p.add_run(
             'Первая цифра соответствует номеру коробки, вторая – расстояние в сантиметрах от низа коробки до точки отбора образца. ')
 
-        # Определяем размеры столбцов (увеличиваем второй столбец на 0,5 дюйма)
         width_samles_col = 0.9
-        width_photo_col = 3.5  # Было 3, увеличиваем до 3,5
-        width_samles_right = 4.0  # Было 4,5, уменьшаем до 4,0
+        width_photo_col = 3.5
+        width_samles_right = 4.0
 
-        # Группируем данные по коробкам (BOX)
-        grouped = self.current_dataframe.groupby('BOX')
+        grouped = self.current_dataframe.groupby(self.box_column)
 
-        # Ищем столбцы "От" и "До" без учёта регистра
         cols_lower = {col.lower(): col for col in self.current_dataframe.columns}
-        ot_col = cols_lower.get('от')
-        do_col = cols_lower.get('до')
+        start_col = cols_lower.get(self.start_column.lower())
+        end_col = cols_lower.get(self.end_column.lower())
 
-        if not ot_col or not do_col:
-            raise ValueError("Не найдены столбцы 'От' и/или 'До' в DataFrame.")
+        if not start_col or not end_col:
+            raise ValueError(f"Не найдены столбцы '{self.start_column}' и/или '{self.end_column}' в DataFrame.")
 
-        # Инициализируем прогресс
         current_progress = 0.0
 
         for box_number, group in grouped:
+            print(f"Обработка коробки {box_number}")
             doc.add_page_break()
 
-            # Создаём таблицу: 4 строки, 4 столбца
             table = doc.add_table(rows=4, cols=4, style='Table Grid')
 
-            # Устанавливаем ширину столбцов
             for cell in table.columns[0].cells:
                 cell.width = Inches(width_samles_col)
             for cell in table.columns[1].cells:
@@ -375,191 +370,137 @@ class DataProcessor:
             for cell in table.columns[3].cells:
                 cell.width = Inches(0.5)
 
-            # 1 строка, 1 столбец: "Коробка"
             cell = table.cell(0, 0)
             cell.text = f'Коробка {int(box_number)}'
 
-            # 1 строка, 2 столбец: Интервал бурения
             cell = table.cell(0, 1)
             ts = 'Интервал бурения: '
             for idx, row in group.iterrows():
                 ts += f"{row['Начало интервала']}-{row['Конец интервала']}\nвынос: {row['Вынос']}\n"
             cell.text = ts.strip()
 
-            # 2 строка, 1 столбец: "Номера образцов"
             cell = table.cell(1, 0)
             cell.text = 'Номера образцов:'
 
-            # 3 строка, 1 столбец: Сами номера образцов
             cell = table.cell(2, 0)
             if samples_df is not None:
-                samples_in_box = samples_df[samples_df['BOX'] == int(box_number)]
+                samples_in_box = samples_df[samples_df[self.box_column] == int(box_number)]
                 sample_numbers = samples_in_box['Номер образца'].tolist()
                 cell.text = '\n'.join(map(str, sample_numbers))
             else:
                 cell.text = ''
 
-            # 2 строка, 2 столбец: Значение "от"
             cell = table.cell(1, 1)
-            ot_value = group[ot_col].iloc[0]
-            cell.text = f'[{ot_value}]'
+            start_value = group[start_col].iloc[0]
+            cell.text = f'[{start_value}]'
 
-            # 4 строка, 2 столбец: Значение "до"
             cell = table.cell(3, 1)
-            do_value = group[do_col].iloc[0]
-            cell.text = f'[{do_value}]'
+            end_value = group[end_col].iloc[0]
+            cell.text = f'[{end_value}]'
 
-            # 2 строка, 3 столбец: "Исследования"
             cell = table.cell(1, 2)
             cell.text = 'Исследования:'
 
-            # 3 строка, 3 столбец: Сами исследования в формате "номер образца \tab исследования"
             cell = table.cell(2, 2)
-            if samples_df is not None:
-                samples_in_box = samples_df[samples_df['BOX'] == int(box_number)]
-                if not samples_in_box.empty:
-                    # Вычисляем высоту ячейки (примерно, в пикселях или условных единицах)
-                    # Предполагаем, что высота ячейки соответствует высоте фото (21,88 см = 8,614 дюйма)
-                    cell_height = 8.614  # Высота в дюймах (примерно соответствует высоте фото)
-                    img_height = 8.614 * 96  # Примерно 96 пикселей на дюйм (для расчётов)
+            if samples_df is not None and not samples_in_box.empty:
+                cell_height = 8.614 * 96
+                shift_up = 0
+                shift_btm = 0
+                samples_in_box = samples_in_box.sort_values(by='Номер образца')
+                current_lines = 0
+                line_height = 0.19 * 96
 
-                    # Параметры, аналогичные draw_sample_circles
-                    shift_up = 0
-                    shift_btm = 0
-
-                    # Отслеживаем текущую позицию (в строках)
-                    current_lines = 0
-
-                    # Сортируем образцы по номеру, чтобы подписи шли сверху вниз
-                    samples_in_box = samples_in_box.sort_values(by='Номер образца')
-
-                    for idx, (_, sample) in enumerate(samples_in_box.iterrows()):
-                        sample_num = sample['Номер образца']
-                        # Извлекаем десятичную часть номера образца (глубина в метрах от верха коробки)
-                        depth_in_box = sample_num - int(sample_num)  # Например, для 8.71 это 0.71 м
-
-                        # Вычисляем вертикальную позицию кружка (аналогично draw_sample_circles)
-                        hy = (img_height - shift_up - shift_btm) * depth_in_box
-
-                        # Корректируем положение, если кружок близко к краю (аналогично draw_sample_circles)
-                        r = img_height * 0.12  # Радиус кружка (12% от высоты изображения, как в draw_sample_circles)
-                        if shift_up + hy + r > 0.95 * img_height:  # Близко к нижнему краю
-                            hy = 0.95 * img_height - shift_up - r
-                        elif shift_up + hy - r < 0.05 * img_height:  # Близко к верхнему краю
-                            hy = 0.05 * img_height - shift_up + r
-
-                        # Вычисляем, сколько строк должно быть до этой подписи
-                        # Калибровочный коэффициент для высоты строки
-                        line_height = 0.19 * 96  # Уменьшаем высоту строки для более точного соответствия
-                        desired_lines = int(hy / line_height)
-
-                        # Вычисляем, сколько пустых строк нужно добавить
-                        lines_to_skip = max(0, desired_lines - current_lines)
-
-                        # Добавляем пустые строки
-                        for _ in range(lines_to_skip):
-                            cell.add_paragraph()
-                            current_lines += 1
-
-                        # Добавляем подпись
-                        paragraph = cell.add_paragraph()
-                        run = paragraph.add_run()
-                        run.text = f"{sample['Номер образца']}"
-                        run.add_tab()
-                        run = paragraph.add_run()
-                        run.text = f"{sample['Исследования']}"
-                        current_lines += 1  # Учитываем строку с подписью
-
-                        # Добавляем минимальный отступ (1 пустая строка) перед следующей подписью
+                for _, sample in samples_in_box.iterrows():
+                    sample_num = sample['Номер образца']
+                    depth_in_box = sample_num - int(sample_num)
+                    hy = (cell_height - shift_up - shift_btm) * depth_in_box
+                    r = cell_height * 0.12
+                    if shift_up + hy + r > 0.95 * cell_height:
+                        hy = 0.95 * cell_height - shift_up - r
+                    elif shift_up + hy - r < 0.05 * cell_height:
+                        hy = 0.05 * cell_height - shift_up + r
+                    desired_lines = int(hy / line_height)
+                    lines_to_skip = max(0, desired_lines - current_lines)
+                    for _ in range(lines_to_skip):
                         cell.add_paragraph()
                         current_lines += 1
-            # 3 строка, 2 столбец: Шкала и фотографии (горизонтально в ряд)
+                    paragraph = cell.add_paragraph()
+                    run = paragraph.add_run()
+                    run.text = f"{sample['Номер образца']}"
+                    run.add_tab()
+                    run = paragraph.add_run()
+                    run.text = f"{sample['Исследования']}"
+                    current_lines += 1
+                    cell.add_paragraph()
+                    current_lines += 1
+
             cell = table.cell(2, 1)
             paragraph = cell.paragraphs[0]
 
-            # Генерируем шкалу
-            top_depth = float(group[ot_col].iloc[0])
-            bottom_depth = float(group[do_col].iloc[0])
-            core_count = 1  # Предполагаем 1 кусок керна
+            top_depth = float(group[start_col].iloc[0])
+            bottom_depth = float(group[end_col].iloc[0])
+            core_count = 1
+            print(f"Генерация шкалы глубин для коробки {box_number}")
             img_d, img_d2 = self.generate_depth_scale(top_depth, bottom_depth, core_count)
-
-            # Вставляем сгенерированную шкалу
             run = paragraph.add_run()
-            run.add_picture(img_d, height=target_height)  # Устанавливаем высоту 21,88 см
-            if img_d2:  # Если есть вторая шкала
+            run.add_picture(img_d, height=target_height)
+            if img_d2:
                 run = paragraph.add_run()
                 run.add_picture(img_d2, height=target_height)
 
-            # Вставляем основное фото коробки с кружками, если есть образцы
             photo_path = group["Фото"].iloc[0]
             if pd.notna(photo_path) and os.path.exists(photo_path):
                 run = paragraph.add_run()
-                if samples_df is not None:
-                    samples_in_box = samples_df[samples_df['BOX'] == int(box_number)]
-                    if not samples_in_box.empty:
-                        # Рисуем кружки на копии фото
-                        print(f"Обрабатываем основное фото: {photo_path}")
-                        modified_photo_path = self.draw_sample_circles(photo_path, samples_in_box, core_count,
-                                                                       suffix='_with_circles')
-                        print(f"Сохранено с кружками (основное): {modified_photo_path}")
-                        run.add_picture(modified_photo_path, height=target_height)
-                        # Удаляем временный файл после использования
-                        try:
-                            os.remove(modified_photo_path)
-                            print(f"Удалён временный файл: {modified_photo_path}")
-                        except Exception as e:
-                            print(f"Ошибка удаления временного файла {modified_photo_path}: {e}")
-                    else:
-                        print(f"Используем оригинальное основное фото: {photo_path}")
-                        run.add_picture(photo_path, height=target_height)
+                if samples_df is not None and not samples_in_box.empty:
+                    print(f"Обрабатываем основное фото: {photo_path}")
+                    modified_photo_path = self.draw_sample_circles(photo_path, samples_in_box, core_count)
+                    print(f"Добавляем фото с кружками: {modified_photo_path}")
+                    run.add_picture(modified_photo_path, height=target_height)
+                    try:
+                        os.remove(modified_photo_path)
+                        print(f"Удалён временный файл: {modified_photo_path}")
+                    except Exception as e:
+                        print(f"Ошибка удаления: {e}")
                 else:
-                    print(f"Используем оригинальное основное фото: {photo_path}")
+                    print(f"Добавляем оригинальное фото: {photo_path}")
                     run.add_picture(photo_path, height=target_height)
 
-            # Вставляем shkala.jpg (высота 1 дюйм)
+            print(f"Добавляем шкалу: {shkala_image_path}")
             run = paragraph.add_run()
-            run.add_picture(shkala_image_path, height=shkala_height)  # Устанавливаем высоту 1 дюйм
+            run.add_picture(shkala_image_path, height=shkala_height)
 
-            # Вставляем УФ-фото коробки с кружками, если есть образцы
             photo_uf_path = group["Фото УФ"].iloc[0]
             if pd.notna(photo_uf_path) and os.path.exists(photo_uf_path):
                 run = paragraph.add_run()
-                if samples_df is not None:
-                    samples_in_box = samples_df[samples_df['BOX'] == int(box_number)]
-                    if not samples_in_box.empty:
-                        # Рисуем кружки на копии УФ-фото
-                        print(f"Обрабатываем УФ-фото: {photo_uf_path}")
-                        modified_uf_photo_path = self.draw_sample_circles(photo_uf_path, samples_in_box, core_count,
-                                                                          suffix='_uf_with_circles')
-                        print(f"Сохранено с кружками (УФ): {modified_uf_photo_path}")
-                        run.add_picture(modified_uf_photo_path, height=target_height)
-                        # Удаляем временный файл после использования
-                        try:
-                            os.remove(modified_uf_photo_path)
-                            print(f"Удалён временный файл: {modified_uf_photo_path}")
-                        except Exception as e:
-                            print(f"Ошибка удаления временного файла {modified_uf_photo_path}: {e}")
-                    else:
-                        print(f"Используем оригинальное УФ-фото: {photo_uf_path}")
-                        run.add_picture(photo_uf_path, height=target_height)
+                if samples_df is not None and not samples_in_box.empty:
+                    print(f"Обрабатываем УФ-фото: {photo_uf_path}")
+                    modified_uf_photo_path = self.draw_sample_circles(photo_uf_path, samples_in_box, core_count,
+                                                                      suffix='_uf_with_circles')
+                    print(f"Добавляем УФ-фото с кружками: {modified_uf_photo_path}")
+                    run.add_picture(modified_uf_photo_path, height=target_height)
+                    try:
+                        os.remove(modified_uf_photo_path)
+                        print(f"Удалён временный файл: {modified_uf_photo_path}")
+                    except Exception as e:
+                        print(f"Ошибка удаления: {e}")
                 else:
-                    print(f"Используем оригинальное УФ-фото: {photo_uf_path}")
+                    print(f"Добавляем оригинальное УФ-фото: {photo_uf_path}")
                     run.add_picture(photo_uf_path, height=target_height)
 
-            # 3 строка, 4 столбец: Вставляем scale.jpg
             cell = table.cell(2, 3)
             paragraph = cell.paragraphs[0]
             run = paragraph.add_run()
-            run.add_picture(scale_image_path, height=target_height)  # Устанавливаем высоту 21,88 см
+            print(f"Добавляем масштаб: {scale_image_path}")
+            run.add_picture(scale_image_path, height=target_height)
 
-            # Обновляем прогресс
             if progress_bar is not None:
                 current_progress += progress_step
                 progress_bar.set(min(current_progress, 1.0))
                 progress_bar.update()
 
-        # Сохраняем документ
+        print(f"Сохранение документа: {save_path}")
         doc.save(save_path)
+        print(f"Документ сохранён: {save_path}")
         return save_path
 
     def get_current_dataframe(self):
