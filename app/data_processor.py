@@ -11,8 +11,8 @@ import math
 import time
 
 class DataProcessor:
-    def __init__(self, excel_path, images_folder, box_column="BOX", start_column="от", end_column="до",
-                 measurements_column="замеры"):  # Добавлен measurements_column
+    def __init__(self, excel_path, images_folder, box_column="BOX", start_column="от", end_column="до", measurements_column="замеры"):
+        print(f"Инициализация DataProcessor: box_column='{box_column}', start_column='{start_column}', end_column='{end_column}', measurements_column='{measurements_column}'")
         self.excel_path = Path(excel_path).resolve()
         self.images_folder = Path(images_folder).resolve()
         self.data = None
@@ -21,7 +21,7 @@ class DataProcessor:
         self.box_column = box_column
         self.start_column = start_column
         self.end_column = end_column
-        self.measurements_column = measurements_column  # Динамическое имя для 'замеры'
+        self.measurements_column = measurements_column
 
     def load_excel(self):
         """Загружает данные из Excel в DataFrame."""
@@ -308,9 +308,14 @@ class DataProcessor:
         return temp_path
 
     def create_catalog(self, save_path, samples_df=None, progress_bar=None, progress_step=1.0):
-        """Создаёт каталог в формате .docx, с учётом образцов, если они переданы."""
+        print("Внутри DataProcessor.create_catalog")
+        print(f"Используемый box_column: '{self.box_column}'")
         if self.current_dataframe is None:
             raise ValueError("Нет данных для создания каталога.")
+
+        print(f"Столбцы в current_dataframe: {list(self.current_dataframe.columns)}")
+        if self.box_column not in self.current_dataframe.columns:
+            raise ValueError(f"Столбец '{self.box_column}' отсутствует в данных.")
 
         scale_image_path = resource_path('resources/scale.jpg')
         shkala_image_path = resource_path('resources/shkala.jpg')
@@ -320,10 +325,8 @@ class DataProcessor:
         if not os.path.exists(shkala_image_path):
             raise FileNotFoundError(f"Файл {shkala_image_path} не найден.")
 
-        target_height = Inches(8.614)
-        shkala_height = Inches(1)
-
         doc = Document()
+        print("Документ создан")
 
         sections = doc.sections
         for section in sections:
@@ -333,18 +336,23 @@ class DataProcessor:
             section.right_margin = Cm(1)
 
         doc.add_heading(f'Фотографии керна по скважине {self.current_dataframe["Скважина"].iloc[0]}', 0)
+        print("Заголовок добавлен")
 
         p = doc.add_paragraph('Глубины даны по керну. ')
         p.add_run('Номера образцов расположены напротив точек выбуривания. ')
         p.add_run('Номер образца состоит из двух цифр, разделённых точкой. ')
         p.add_run(
-            'Первая цифра соответствует номеру коробки, вторая – расстояние в сантиметрах от низа коробки до точки отбора образца. ')
+            'Первая цифра соответствует номеру коробки, вторая – расстояние в сантиметрах от низа коробки до точки отбора образца.')
+        print("Вступительный текст добавлен")
 
         width_samles_col = 0.9
         width_photo_col = 3.5
         width_samles_right = 4.0
+        target_height = Inches(8.614)
+        shkala_height = Inches(1)
 
         grouped = self.current_dataframe.groupby(self.box_column)
+        print(f"Группировка выполнена, групп: {len(grouped)}")
 
         cols_lower = {col.lower(): col for col in self.current_dataframe.columns}
         start_col = cols_lower.get(self.start_column.lower())
@@ -353,14 +361,11 @@ class DataProcessor:
         if not start_col or not end_col:
             raise ValueError(f"Не найдены столбцы '{self.start_column}' и/или '{self.end_column}' в DataFrame.")
 
-        current_progress = 0.0
-
         for box_number, group in grouped:
             print(f"Обработка коробки {box_number}")
             doc.add_page_break()
 
             table = doc.add_table(rows=4, cols=4, style='Table Grid')
-
             for cell in table.columns[0].cells:
                 cell.width = Inches(width_samles_col)
             for cell in table.columns[1].cells:
@@ -403,44 +408,21 @@ class DataProcessor:
 
             cell = table.cell(2, 2)
             if samples_df is not None and not samples_in_box.empty:
-                cell_height = 8.614 * 96
-                shift_up = 0
-                shift_btm = 0
                 samples_in_box = samples_in_box.sort_values(by='Номер образца')
-                current_lines = 0
-                line_height = 0.19 * 96
-
                 for _, sample in samples_in_box.iterrows():
-                    sample_num = sample['Номер образца']
-                    depth_in_box = sample_num - int(sample_num)
-                    hy = (cell_height - shift_up - shift_btm) * depth_in_box
-                    r = cell_height * 0.12
-                    if shift_up + hy + r > 0.95 * cell_height:
-                        hy = 0.95 * cell_height - shift_up - r
-                    elif shift_up + hy - r < 0.05 * cell_height:
-                        hy = 0.05 * cell_height - shift_up + r
-                    desired_lines = int(hy / line_height)
-                    lines_to_skip = max(0, desired_lines - current_lines)
-                    for _ in range(lines_to_skip):
-                        cell.add_paragraph()
-                        current_lines += 1
                     paragraph = cell.add_paragraph()
                     run = paragraph.add_run()
                     run.text = f"{sample['Номер образца']}"
                     run.add_tab()
-                    run = paragraph.add_run()
-                    run.text = f"{sample['Исследования']}"
-                    current_lines += 1
-                    cell.add_paragraph()
-                    current_lines += 1
+                    run.text += f"{sample['Исследования']}"
 
+            # Добавляем шкалу глубин, основное фото и УФ-фото
             cell = table.cell(2, 1)
             paragraph = cell.paragraphs[0]
-
             top_depth = float(group[start_col].iloc[0])
             bottom_depth = float(group[end_col].iloc[0])
             core_count = 1
-            print(f"Генерация шкалы глубин для коробки {box_number}")
+            print(f"Генерация шкалы глубин для коробки {box_number}: {top_depth} - {bottom_depth}")
             img_d, img_d2 = self.generate_depth_scale(top_depth, bottom_depth, core_count)
             run = paragraph.add_run()
             run.add_picture(img_d, height=target_height)
@@ -450,55 +432,61 @@ class DataProcessor:
 
             photo_path = group["Фото"].iloc[0]
             if pd.notna(photo_path) and os.path.exists(photo_path):
-                run = paragraph.add_run()
                 if samples_df is not None and not samples_in_box.empty:
-                    print(f"Обрабатываем основное фото: {photo_path}")
+                    print(f"Обрабатываем основное фото для коробки {box_number}: {photo_path}")
                     modified_photo_path = self.draw_sample_circles(photo_path, samples_in_box, core_count)
-                    print(f"Добавляем фото с кружками: {modified_photo_path}")
+                    print(f"Добавляем основное фото с кружками для коробки {box_number}: {modified_photo_path}")
+                    run = paragraph.add_run()
                     run.add_picture(modified_photo_path, height=target_height)
                     try:
                         os.remove(modified_photo_path)
-                        print(f"Удалён временный файл: {modified_photo_path}")
+                        print(f"Удалён временный файл основного фото: {modified_photo_path}")
                     except Exception as e:
-                        print(f"Ошибка удаления: {e}")
+                        print(f"Ошибка удаления временного файла основного фото: {e}")
                 else:
-                    print(f"Добавляем оригинальное фото: {photo_path}")
+                    print(f"Добавляем оригинальное основное фото для коробки {box_number}: {photo_path}")
+                    run = paragraph.add_run()
                     run.add_picture(photo_path, height=target_height)
+            else:
+                print(f"Основное фото для коробки {box_number} не найдено или отсутствует: {photo_path}")
 
-            print(f"Добавляем шкалу: {shkala_image_path}")
+            print(f"Добавляем шкалу для коробки {box_number}: {shkala_image_path}")
             run = paragraph.add_run()
             run.add_picture(shkala_image_path, height=shkala_height)
 
             photo_uf_path = group["Фото УФ"].iloc[0]
             if pd.notna(photo_uf_path) and os.path.exists(photo_uf_path):
-                run = paragraph.add_run()
                 if samples_df is not None and not samples_in_box.empty:
-                    print(f"Обрабатываем УФ-фото: {photo_uf_path}")
+                    print(f"Обрабатываем УФ-фото для коробки {box_number}: {photo_uf_path}")
                     modified_uf_photo_path = self.draw_sample_circles(photo_uf_path, samples_in_box, core_count,
                                                                       suffix='_uf_with_circles')
-                    print(f"Добавляем УФ-фото с кружками: {modified_uf_photo_path}")
+                    print(f"Добавляем УФ-фото с кружками для коробки {box_number}: {modified_uf_photo_path}")
+                    run = paragraph.add_run()
                     run.add_picture(modified_uf_photo_path, height=target_height)
                     try:
                         os.remove(modified_uf_photo_path)
-                        print(f"Удалён временный файл: {modified_uf_photo_path}")
+                        print(f"Удалён временный файл УФ-фото: {modified_uf_photo_path}")
                     except Exception as e:
-                        print(f"Ошибка удаления: {e}")
+                        print(f"Ошибка удаления временного файла УФ-фото: {e}")
                 else:
-                    print(f"Добавляем оригинальное УФ-фото: {photo_uf_path}")
+                    print(f"Добавляем оригинальное УФ-фото для коробки {box_number}: {photo_uf_path}")
+                    run = paragraph.add_run()
                     run.add_picture(photo_uf_path, height=target_height)
+            else:
+                print(f"УФ-фото для коробки {box_number} не найдено или отсутствует: {photo_uf_path}")
 
+            # Добавляем масштаб
             cell = table.cell(2, 3)
             paragraph = cell.paragraphs[0]
             run = paragraph.add_run()
-            print(f"Добавляем масштаб: {scale_image_path}")
+            print(f"Добавляем масштаб для коробки {box_number}: {scale_image_path}")
             run.add_picture(scale_image_path, height=target_height)
 
             if progress_bar is not None:
-                current_progress += progress_step
-                progress_bar.set(min(current_progress, 1.0))
+                progress_bar.set(min(progress_bar.get() + progress_step, 1.0))
                 progress_bar.update()
 
-        print(f"Сохранение документа: {save_path}")
+        print(f"Сохранение в {save_path}")
         doc.save(save_path)
         print(f"Документ сохранён: {save_path}")
         return save_path

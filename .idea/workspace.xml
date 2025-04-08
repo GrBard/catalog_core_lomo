@@ -7,11 +7,7 @@
     <list default="true" id="93dbfe67-a9ef-4ab5-aa13-bbb1a0010f01" name="Changes" comment="new logic">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/data_processor.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/data_processor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/file_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/file_manager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CoreCatalog/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/CoreCatalog/Analysis-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CoreCatalog/CoreCatalog.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/CoreCatalog/CoreCatalog.pkg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/CoreCatalog.exe" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -95,7 +91,20 @@
       <option name="presentableId" value="Default" />
       <updated>1742817232984</updated>
     </task>
+    <task id="LOCAL-00001" summary="new logic">
+      <option name="closed" value="true" />
+      <created>1744108293139</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1744108293139</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="new logic" />
+    <option name="LAST_COMMIT_MESSAGE" value="new logic" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

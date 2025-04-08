@@ -123,7 +123,9 @@ class AppUI:
             if not response:
                 self.status_var.set("Действие отменено. Текущие данные сохранены.")
                 return
+            print("Очистка старого data_processor")
             self.data_processor = None
+
             if hasattr(self, 'tree') and self.tree:
                 for widget in self.table_frame.winfo_children():
                     widget.destroy()
@@ -145,25 +147,31 @@ class AppUI:
         try:
             from app.data_processor import DataProcessor
             main_columns = self.file_manager.get_main_file_columns()
+            print(f"Выбранные столбцы: {main_columns}")
             if main_columns:
-                box_column = main_columns[0]  # Идентификатор коробки
-                start_column = main_columns[1]  # 'От'
-                end_column = main_columns[2]  # 'До'
-                measurements_column = main_columns[3]  # 'Замеры'
+                box_column = main_columns[0]
+                start_column = main_columns[1]
+                end_column = main_columns[2]
+                measurements_column = main_columns[3]
+                print(
+                    f"Используемые столбцы: box={box_column}, start={start_column}, end={end_column}, measurements={measurements_column}")
             else:
                 box_column = "BOX"
                 start_column = "от"
                 end_column = "до"
-                measurements_column = "замеры"  # Значение по умолчанию
+                measurements_column = "замеры"
+                print("Используются столбцы по умолчанию")
+
             self.data_processor = DataProcessor(
                 excel_path,
                 images_folder,
                 box_column=box_column,
                 start_column=start_column,
                 end_column=end_column,
-                measurements_column=measurements_column  # Передаём имя столбца замеров
+                measurements_column=measurements_column
             )
             df = self.data_processor.process_data(self.samples_file if self.samples_var.get() else None)
+            print(f"Столбцы в DataFrame: {list(df.columns)}")
             if df.empty:
                 messagebox.showwarning("Предупреждение", "Обработанные данные пусты.")
                 return
@@ -180,7 +188,7 @@ class AppUI:
 
             messagebox.showinfo("Успех", f"Обработано {len(df)} записей!{samples_info}")
         except Exception as e:
-            print(f"Ошибка: {str(e)}")
+            print(f"Ошибка обработки данных: {str(e)}")
             messagebox.showerror("Ошибка обработки", str(e))
             self.status_var.set("Ошибка при обработке данных")
 
@@ -487,35 +495,39 @@ class AppUI:
 
     def create_catalog(self):
         """Создаёт каталог на основе обработанных данных с отображением прогресса."""
+        print("Начало метода create_catalog в AppUI")
         if not self.data_processor or self.data_processor.get_current_dataframe() is None:
+            print("Ошибка: нет данных для создания каталога")
             messagebox.showerror("Ошибка", "Нет данных для создания каталога.")
             return
 
         try:
             save_path = self.file_manager.save_catalog()
+            print(f"Выбран путь сохранения: {save_path}")
             if save_path:
+                print(f"Текущий box_column в data_processor: '{self.data_processor.box_column}'")
+                print(f"Столбцы в current_dataframe: {list(self.data_processor.get_current_dataframe().columns)}")
+
                 # Создаём окно прогресса
                 progress_window = ctk.CTkToplevel(self.root)
                 progress_window.title("Создание каталога")
                 progress_window.geometry("300x150")
                 progress_window.resizable(False, False)
-                progress_window.transient(self.root)  # Привязываем к главному окну
-                progress_window.grab_set()  # Блокируем взаимодействие с главным окном
+                progress_window.transient(self.root)
+                progress_window.grab_set()
 
-                # Метка
                 label = ctk.CTkLabel(progress_window, text="Создание каталога...", font=("Helvetica", 12))
                 label.pack(pady=10)
 
-                # Прогресс-бар
                 progress_bar = ctk.CTkProgressBar(progress_window, width=250)
                 progress_bar.pack(pady=10)
                 progress_bar.set(0)
 
-                # Получаем количество коробок для расчёта прогресса
-                total_boxes = len(self.data_processor.get_current_dataframe().groupby('BOX'))
+                total_boxes = len(self.data_processor.get_current_dataframe().groupby(self.data_processor.box_column))
                 progress_step = 1.0 / total_boxes if total_boxes > 0 else 1.0
+                print(f"Количество коробок: {total_boxes}, шаг прогресса: {progress_step}")
 
-                # Передаём DataFrame образцов и прогресс-бар
+                print("Вызов DataProcessor.create_catalog")
                 self.data_processor.create_catalog(
                     save_path,
                     self.samples_dataframe if self.samples_var.get() else None,
@@ -523,7 +535,6 @@ class AppUI:
                     progress_step
                 )
 
-                # Закрываем окно прогресса
                 progress_window.destroy()
 
                 self.status_var.set(f"Каталог создан: {save_path}")
@@ -531,10 +542,11 @@ class AppUI:
                 if response:
                     self.open_file(save_path)
         except Exception as e:
-            # Закрываем окно прогресса в случае ошибки
             if 'progress_window' in locals():
                 progress_window.destroy()
+            print(f"Ошибка в create_catalog: {str(e)}")
             messagebox.showerror("Ошибка создания каталога", str(e))
+            raise  # Добавляем raise для полной трассировки
 
     def open_file(self, file_path):
         """Открывает файл в зависимости от операционной системы."""
