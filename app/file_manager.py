@@ -11,12 +11,11 @@ class FileManager:
         self.main_file_columns = None  # Для хранения выбранных столбцов основного файла
         self.samples_file_columns = None  # Для хранения выбранных столбцов файла с образцами
 
-    # FileManager (оставляем как есть, но уточняем назначение)
-    # FileManager
+
     def select_excel(self):
         """Выбирает Excel-файл и запрашивает выбор столбцов."""
         self.excel_path = filedialog.askopenfilename(
-            title="Выберите Excel-файл",
+            title="Выберите Excel-файл c информацией о коробках",
             filetypes=[("Excel files", "*.xlsx *.xls")]
         )
         if self.excel_path:
@@ -47,7 +46,7 @@ class FileManager:
     def select_folder(self):
         """Выбирает папку с изображениями."""
         self.images_folder = filedialog.askdirectory(
-            title="Выберите папку с изображениями"
+            title="Выберите папку с фотографиями керна"
         )
         return self.images_folder
 

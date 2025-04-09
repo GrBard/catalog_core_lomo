@@ -290,7 +290,7 @@ class DataProcessor:
 
         # Сохраняем изменённое изображение во временный файл
         temp_img = io.BytesIO()
-        img_copy.save(temp_img, 'PNG')
+        img_copy.save(temp_img, 'JPEG')
         temp_img.seek(0)
 
         # Создаём уникальный временный путь, чтобы избежать перезаписи
@@ -306,6 +306,26 @@ class DataProcessor:
             print(f"Внимание: исходный файл {photo_path} может быть изменён!")
 
         return temp_path
+
+    def compress_image(self, image_path, max_width=1200, quality=85):
+        """Сжимает изображение до заданной ширины и качества."""
+        try:
+            img = Image.open(image_path)
+            # Преобразуем в RGB, если изображение в RGBA или другом формате
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            # Уменьшаем ширину, сохраняя пропорции
+            width_percent = max_width / float(img.size[0])
+            new_height = int(float(img.size[1]) * float(width_percent))
+            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+            # Сохраняем в буфер с заданным качеством
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=quality)
+            output.seek(0)
+            return output
+        except Exception as e:
+            print(f"Ошибка сжатия изображения {image_path}: {e}")
+            return image_path  # Возвращаем исходный путь в случае ошибки
 
     def create_catalog(self, save_path, samples_df=None, progress_bar=None, progress_step=1.0):
         print("Внутри DataProcessor.create_catalog")
@@ -409,12 +429,37 @@ class DataProcessor:
             cell = table.cell(2, 2)
             if samples_df is not None and not samples_in_box.empty:
                 samples_in_box = samples_in_box.sort_values(by='Номер образца')
-                for _, sample in samples_in_box.iterrows():
+                # Начало коробки
+                box_start_depth = float(group[start_col].iloc[0])
+                # Максимум 45 параграфов для 1 метра
+                max_paragraphs = 45
+                # Очищаем ячейку перед заполнением
+                cell._element.clear_content()
+
+                # Добавляем начальный пустой параграф
+                cell.add_paragraph("")
+
+                previous_position = 0  # Позиция в параграфах от начала коробки
+                for idx, sample in samples_in_box.iterrows():
+                    sample_num = sample['Номер образца']
+                    research = sample['Исследования']
+                    # Вычисляем позицию образца в метрах от начала коробки
+                    depth_in_box = sample_num - int(sample_num)  # Например, 0.57 для 22.57
+                    # Преобразуем в количество параграфов (0.57 м * 45 = 25.65 -> 26 параграфов)
+                    position_in_paragraphs = int(depth_in_box * max_paragraphs)
+
+                    # Добавляем пустые параграфы до текущего образца
+                    paragraphs_to_add = position_in_paragraphs - previous_position
+                    for _ in range(paragraphs_to_add):
+                        cell.add_paragraph("")
+
+                    # Добавляем подпись образца
                     paragraph = cell.add_paragraph()
                     run = paragraph.add_run()
-                    run.text = f"{sample['Номер образца']}"
-                    run.add_tab()
-                    run.text += f"{sample['Исследования']}"
+                    run.text = f"{sample_num}\t{research}"
+
+                    # Обновляем предыдущую позицию
+                    previous_position = position_in_paragraphs
 
             # Добавляем шкалу глубин, основное фото и УФ-фото
             cell = table.cell(2, 1)
@@ -435,18 +480,20 @@ class DataProcessor:
                 if samples_df is not None and not samples_in_box.empty:
                     print(f"Обрабатываем основное фото для коробки {box_number}: {photo_path}")
                     modified_photo_path = self.draw_sample_circles(photo_path, samples_in_box, core_count)
-                    print(f"Добавляем основное фото с кружками для коробки {box_number}: {modified_photo_path}")
+                    compressed_photo = self.compress_image(modified_photo_path)
+                    print(f"Добавляем сжатое основное фото с кружками для коробки {box_number}")
                     run = paragraph.add_run()
-                    run.add_picture(modified_photo_path, height=target_height)
+                    run.add_picture(compressed_photo, height=target_height)
                     try:
                         os.remove(modified_photo_path)
                         print(f"Удалён временный файл основного фото: {modified_photo_path}")
                     except Exception as e:
                         print(f"Ошибка удаления временного файла основного фото: {e}")
                 else:
-                    print(f"Добавляем оригинальное основное фото для коробки {box_number}: {photo_path}")
+                    print(f"Сжимаем и добавляем оригинальное основное фото для коробки {box_number}: {photo_path}")
+                    compressed_photo = self.compress_image(photo_path)
                     run = paragraph.add_run()
-                    run.add_picture(photo_path, height=target_height)
+                    run.add_picture(compressed_photo, height=target_height)
             else:
                 print(f"Основное фото для коробки {box_number} не найдено или отсутствует: {photo_path}")
 
@@ -460,18 +507,20 @@ class DataProcessor:
                     print(f"Обрабатываем УФ-фото для коробки {box_number}: {photo_uf_path}")
                     modified_uf_photo_path = self.draw_sample_circles(photo_uf_path, samples_in_box, core_count,
                                                                       suffix='_uf_with_circles')
-                    print(f"Добавляем УФ-фото с кружками для коробки {box_number}: {modified_uf_photo_path}")
+                    compressed_uf_photo = self.compress_image(modified_uf_photo_path)
+                    print(f"Добавляем сжатое УФ-фото с кружками для коробки {box_number}")
                     run = paragraph.add_run()
-                    run.add_picture(modified_uf_photo_path, height=target_height)
+                    run.add_picture(compressed_uf_photo, height=target_height)
                     try:
                         os.remove(modified_uf_photo_path)
                         print(f"Удалён временный файл УФ-фото: {modified_uf_photo_path}")
                     except Exception as e:
                         print(f"Ошибка удаления временного файла УФ-фото: {e}")
                 else:
-                    print(f"Добавляем оригинальное УФ-фото для коробки {box_number}: {photo_uf_path}")
+                    print(f"Сжимаем и добавляем оригинальное УФ-фото для коробки {box_number}: {photo_uf_path}")
+                    compressed_uf_photo = self.compress_image(photo_uf_path)
                     run = paragraph.add_run()
-                    run.add_picture(photo_uf_path, height=target_height)
+                    run.add_picture(compressed_uf_photo, height=target_height)
             else:
                 print(f"УФ-фото для коробки {box_number} не найдено или отсутствует: {photo_uf_path}")
 

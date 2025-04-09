@@ -8,7 +8,7 @@ def main():
 
     # Устанавливаем иконку для окна
     try:
-        icon_path = resource_path("my_icon.ico")  # Укажи путь к иконке
+        icon_path = resource_path("resources/my_icon.ico")  # Укажи путь к иконке
         print(f"Пытаемся загрузить иконку: {icon_path}")
         root.iconbitmap(icon_path)  # Устанавливаем иконку
     except Exception as e:
