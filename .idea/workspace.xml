@@ -4,10 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="93dbfe67-a9ef-4ab5-aa13-bbb1a0010f01" name="Changes" comment="new logic">
+    <list default="true" id="93dbfe67-a9ef-4ab5-aa13-bbb1a0010f01" name="Changes" comment="New icon">
+      <change afterPath="$PROJECT_DIR$/README.MD" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/data_processor.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/data_processor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/file_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/file_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/ui.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/ui.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CoreCatalog/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/CoreCatalog/Analysis-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CoreCatalog/CoreCatalog.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/CoreCatalog/CoreCatalog.pkg" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -23,6 +29,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 8
@@ -99,12 +108,29 @@
       <option name="project" value="LOCAL" />
       <updated>1744108293139</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="new logic">
+      <option name="closed" value="true" />
+      <created>1744111534803</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1744111534803</updated>
+    </task>
+    <task id="LOCAL-00003" summary="New icon">
+      <option name="closed" value="true" />
+      <created>1744199165901</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1744199165901</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="new logic" />
-    <option name="LAST_COMMIT_MESSAGE" value="new logic" />
+    <MESSAGE value="New icon" />
+    <option name="LAST_COMMIT_MESSAGE" value="New icon" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
